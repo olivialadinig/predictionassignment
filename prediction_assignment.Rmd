@@ -1,0 +1,95 @@
+---
+title: "Prediction Assignment"
+author: "Olivia Ladinig"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Background
+In this project, the goal is to predict whether participants performed weight lifting exercises (Unilateral Dumbbell Biceps Curl ) in a correct way ("A" in the 'classe' varable) or in one of four incorrect ways ("B" through "E" in the 'classe' variable). The used data was from accelerometers on the belt, forearm, arm, and dumbell from 6 participants.
+
+The dependent variable or response is the “classe” variable in the training set, that can have the following values:
+- exactly according to the specification (Class A)
+- throwing the elbows to the front (Class B)
+- lifting the dumbbell only halfway (Class C)
+- lowering the dumbbell only halfway (Class D)
+- throwing the hips to the front (Class E)
+
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Preliminaries
+Loading required libraries and importing the two data files. After visual inspection of the files we choose to treat NAs, blank fields, and "#DIV/0!" as missing values. Variables with missing values were removed, and finally, the first 7 variables were removed, too, since they are not important for the analysis.  
+```{r,echo=T, results='hide', message=F, warning=F}
+library(ggplot2); library(caret); library(rpart); library(rpart.plot); library(randomForest); library(e1071)
+training <- read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+training_clean<-training[,colSums(is.na(training)) == 0]
+testing_clean<-testing[,colSums(is.na(testing)) == 0]
+training_sub   <-training_clean[,-c(1:7)]
+testing_sub <-testing_clean[,-c(1:7)]
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Creating training and test sets
+In this section the training data will be split into a training data set (75%) 'training_split' and a testing data set (25%) 'testing_split'. The initial 'testing' dataset, now called 'testing_sub' is saved for estimating the out of sample error of our predictor.
+```{r}
+set.seed (12345)
+subSamples <- createDataPartition(y=training_sub$classe, p=0.75, list=FALSE)
+training_split <- training_sub[subSamples, ] 
+testing_split <- training_sub[-subSamples, ]
+```
+
+What remains are a training set with 14718 cases and 53 variables, and a testing set with 4904 cases and 53 variables. 
+
+## Prediction models
+In this section we perform a series of different models on the training data set. 
+
+We start with a decision tree:
+```{r}
+modFitDT <- rpart(classe ~ ., data=training_split, method="class")
+predictDT <- predict(modFitDT, testing_split, type = "class")
+confusionMatrix(predictDT, testing_split$classe)
+```
+The accuracy is pretty low, with 75%. 
+
+Next we try prediction with random forest method. 
+
+```{r}
+modFitRF <- randomForest(classe ~ ., data=training_split)
+predictRF <- predict(modFitRF, testing_split)
+confusionMatrix(predictRF, testing_split$classe)
+```
+The model works very well, with 99% accuracy. 
+
+We test one more algorithm, with linear discriminant analysis. 
+
+```{r}
+modFitlda <- train(classe ~ ., data=training_split, method="lda")
+predictlda <- predict(modFitlda, testing_split)
+confusionMatrix(predictlda, testing_split$classe)
+```
+The performance was again poor, with only 71% accuracy.
+
+## Out of sample error
+The out of sample error of our most successful algorithm is 
+
+```{r}
+1-as.numeric(confusionMatrix(predict(modFitRF , testing_split , type ="class") , testing_split$classe)$overall['Accuracy'])
+```
+
+## Predicting test cases
+In a last step, we predict the classe variable in our test set containing 20 cases. 
+```{r}
+predicttest <- predict(modFitRF, testing_sub)
+predicttest
+```
+
+
+
+
+
